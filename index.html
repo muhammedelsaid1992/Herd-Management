@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2e7d5b">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="الأبقار">
+<title>إدارة الأبقار والحظائر</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#f4f6f8;--card:#fff;--tx:#1d2733;--mut:#6b7785;--bd:#d5dbe2;--pri:#2e7d5b;--sec:#5b6b84;--dan:#b3402f;--in:#eef2f6}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14181d;--card:#1e242b;--tx:#e8edf2;--mut:#9aa6b3;--bd:#333d48;--pri:#3a9a72;--sec:#6f82a0;--dan:#d4675a;--in:#272f38}}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:"Segoe UI",Tahoma,Arial,sans-serif;font-size:16px}
+header{display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--pri);color:#fff;position:sticky;top:env(safe-area-inset-top,0px);z-index:5}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--pri);z-index:10}
+header h1{font-size:18px;margin:0;flex:1}
+header button{background:rgba(255,255,255,.2);color:#fff;border:0;border-radius:8px;padding:8px 12px;font-size:15px}
+main{padding:14px;max-width:720px;margin:auto}
+.btn{display:block;width:100%;padding:15px;margin:0 0 10px;border:0;border-radius:10px;background:var(--sec);color:#fff;font-size:17px;font-family:inherit}
+.btn.p{background:var(--pri)}.btn.d{background:var(--dan)}.btn.s{width:auto;display:inline-block;padding:11px 18px;margin:0 0 0 8px}
+label{display:block;margin:12px 0 4px;color:var(--mut);font-size:14px}
+input,select,textarea{width:100%;padding:12px;border:1px solid var(--bd);border-radius:8px;background:var(--in);color:var(--tx);font-size:16px;font-family:inherit}
+textarea{min-height:120px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:12px;margin-bottom:10px}
+.wrap{overflow-x:auto;border:1px solid var(--bd);border-radius:10px;background:var(--card)}
+table{border-collapse:collapse;width:100%;font-size:14px;white-space:nowrap}
+th,td{padding:9px 10px;border-bottom:1px solid var(--bd);text-align:right}
+th{background:var(--in);color:var(--mut);font-weight:600}
+tr[data-id]{cursor:pointer}
+.msg{padding:10px;border-radius:8px;background:var(--in);margin:10px 0;white-space:pre-wrap;line-height:1.7}
+.ok{color:var(--pri)}.bad{color:var(--dan)}.mut{color:var(--mut);font-size:14px}
+.row{display:flex;gap:8px}.row>*{flex:1}
+.pen{display:flex;justify-content:space-between;align-items:center;font-size:17px}
+.chip{display:inline-block;background:var(--in);border:1px solid var(--bd);border-radius:14px;padding:3px 10px;margin:4px 0 0 6px;font-size:13px}
+th[data-sort]{cursor:pointer}
+</style>
+</head>
+<body>
+<header><button id="back" style="display:none">→ رجوع</button><h1 id="ttl">برنامج إدارة الأبقار والحظائر</h1></header>
+<main id="app"></main>
+<script>
+var S={cows:[],moves:[]},KEY="cows_app_v1",mem="";
+function load(){try{var r=localStorage.getItem(KEY);if(r)S=JSON.parse(r)}catch(e){try{if(mem)S=JSON.parse(mem)}catch(x){}}}
+function save(){var j=JSON.stringify(S);mem=j;try{localStorage.setItem(KEY,j)}catch(e){}}
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+function today(){return new Date().toISOString().slice(0,10)}
+function $(i){return document.getElementById(i)}
+var STAT=["عجلة","ملقحة","عشار","فارغة","حلابة","جافة","مريضة"];
+function pens(){var p={};S.cows.forEach(function(c){if(c.pen)p[c.pen]=(p[c.pen]||0)+1});return p}
+function penList(){return '<datalist id="pl">'+Object.keys(pens()).map(function(p){return'<option value="'+esc(p)+'">'}).join("")+'</datalist>'}
+function find(id){return S.cows.filter(function(c){return c.id===id})[0]}
+function ids(t){return t.split(/[\s,،;]+/).filter(Boolean)}
+var SORT={f:'',d:1},TL=[];
+var COLS=[['id','رقم البقرة'],['pen','الحظيرة'],['age','العمر (يوم)'],['w','الوزن (كجم)'],['dcc','DCC'],['st','الحالة'],['due','الولادة المتوقعة'],['date','التسجيل']];
+function sv(c,f){if(f==='age')return parseFloat(ageOf(c));if(f==='w'||f==='dcc')return parseFloat(c[f]);if(f==='due'){var r=rem(c);return r===null?NaN:r}return c[f]==null?'':String(c[f])}
+function emp(x){return x===''||(typeof x==='number'&&isNaN(x))}
+function sorted(l){if(!SORT.f)return l;var f=SORT.f,d=SORT.d;return l.slice().sort(function(a,b){var x=sv(a,f),y=sv(b,f),xe=emp(x),ye=emp(y);if(xe&&ye)return 0;if(xe)return 1;if(ye)return -1;if(typeof x==='number')return(x-y)*d;return String(x).localeCompare(String(y),'ar',{numeric:true})*d})}
+function tbl(){var l=sorted(TL);return'<div class="row" style="margin-bottom:8px"><select id="sf"><option value="">بدون ترتيب</option>'+COLS.map(function(x){return'<option value="'+x[0]+'"'+(SORT.f===x[0]?' selected':'')+'>ترتيب حسب: '+x[1]+'</option>'}).join('')+'</select><button class="btn" id="sd" style="margin:0;flex:0 0 auto;width:auto;padding:10px 14px">'+(SORT.d>0?'تصاعدي ▲':'تنازلي ▼')+'</button></div><div class="wrap"><table><tr>'+COLS.map(function(x){return'<th data-sort="'+x[0]+'">'+x[1]+(SORT.f===x[0]?(SORT.d>0?' ▲':' ▼'):'')+'</th>'}).join('')+'</tr>'+l.map(function(c){return'<tr data-id="'+esc(c.id)+'"><td><b>'+esc(c.id)+'</b></td><td>'+esc(c.pen)+'</td><td>'+esc(ageOf(c))+'</td><td>'+esc(c.w)+'</td><td>'+esc(c.dcc)+'</td><td>'+esc(c.st)+'</td><td>'+esc(dueDate(c))+'</td><td>'+esc(c.date)+'</td></tr>'}).join('')+'</table></div><p class="mut">اضغط على الصف لفتح بيانات البقرة، أو على عنوان العمود للترتيب. العدد: '+l.length+'</p>'}
+function table(l){if(!l.length)return'<p class="mut">لا توجد نتائج.</p>';TL=l;return'<div id="tw">'+tbl()+'</div>'}
+function avg(l,f){var n=l.map(f).filter(function(x){return!isNaN(x)});return n.length?(n.reduce(function(a,b){return a+b},0)/n.length).toFixed(1):'-'}
+function stats(l){var cnt={};l.forEach(function(c){var k=c.st||'غير محدد';cnt[k]=(cnt[k]||0)+1});
+var ks=STAT.filter(function(k){return cnt[k]}).concat(Object.keys(cnt).filter(function(k){return STAT.indexOf(k)<0}));
+var pg=l.filter(function(c){return c.st==='عشار'});
+return'<div class="mut" style="line-height:1.9">متوسط الوزن: <b>'+avg(l,function(c){return parseFloat(c.w)})+'</b> كجم<br>متوسط العمر: <b>'+avg(l,function(c){return parseFloat(ageOf(c))})+'</b> يوم<br>متوسط أيام الحمل (للعشار): <b>'+avg(pg,function(c){return parseFloat(c.dcc)})+'</b> يوم</div><div style="margin-top:6px">'+ks.map(function(k){return'<span class="chip">'+esc(k)+': <b>'+cnt[k]+'</b></span>'}).join('')+'</div>'}
+function sumView(){if(!S.cows.length)return'<p class="mut">لا توجد أبقار بعد.</p>';var g={};S.cows.forEach(function(c){var k=c.pen||'بدون حظيرة';(g[k]=g[k]||[]).push(c)});
+var k=Object.keys(g).sort(function(a,b){return a.localeCompare(b,'ar',{numeric:true})});
+return'<div class="card"><div class="pen"><b>إجمالي المزرعة</b><b>'+S.cows.length+' بقرة • '+k.length+' حظيرة</b></div>'+stats(S.cows)+'</div>'+k.map(function(n){return'<div class="card" data-pen="'+esc(n)+'" style="cursor:pointer"><div class="pen"><span>'+(n==='بدون حظيرة'?n:'حظيرة '+esc(n))+'</span><b>'+g[n].length+' بقرة</b></div>'+stats(g[n])+'</div>'}).join('')+'<p class="mut">اضغط على الحظيرة لعرض أبقارها.</p>'}
+function opts(a,sel){return a.map(function(x){return'<option'+(x===sel?" selected":"")+'>'+esc(x)+'</option>'}).join("")}
+var V="home",A=null;
+function go(v,a){V=v;A=a||null;render();window.scrollTo(0,0)}
+function render(){var h="",t="برنامج إدارة الأبقار والحظائر";$("back").style.display=V==="home"?"none":"";
+if(V==="home"){h='<button class="btn" data-go="sum">ملخص المزرعة</button><button class="btn p" data-go="add">تسجيل بقرة جديدة</button><button class="btn" data-go="pens">عرض الحظائر</button><button class="btn" data-go="move">نقل أبقار بين الحظائر</button><button class="btn" data-go="search">بحث بعدة أرقام</button><button class="btn" data-go="rep">التقارير</button><button class="btn" data-go="edit">بيانات بقرة / تعديل</button><button class="btn" style="background:var(--mut)" data-go="bk">نسخة احتياطية</button>'+bkWarn()+'<p class="mut">عدد الأبقار: '+S.cows.length+' — البيانات محفوظة على هذا الجهاز فقط.</p>'}
+else if(V==="add"){t="تسجيل بقرة جديدة";h=form({date:today()},true)}
+else if(V==="edit"){t="بيانات بقرة / تعديل";var c=A&&find(A);h='<label>رقم البقرة (Cow ID)</label><div class="row"><input id="lid" value="'+esc(A||"")+'"><button class="btn p s" id="ld" style="flex:0 0 auto;margin:0">تحميل</button></div><div id="fm">'+(c?form(c,false):'<p class="mut">اكتب رقم البقرة واضغط تحميل.</p>')+'</div>'+(c?mvlog(c.id):'')}
+else if(V==="sum"){t="ملخص المزرعة";h=sumView()}
+else if(V==="pens"){t="الحظائر";var p=pens(),k=Object.keys(p).sort();h=penList()+(k.length?k.map(function(x){return'<div class="card pen" data-pen="'+esc(x)+'"><span>حظيرة '+esc(x)+'</span><b>'+p[x]+'</b></div>'}).join(""):'<p class="mut">لا توجد حظائر بعد.</p>')+(A?'<h3>حظيرة '+esc(A)+'</h3>'+table(S.cows.filter(function(c){return(c.pen||"بدون حظيرة")===A})):"")}
+else if(V==="move"){t="نقل أبقار بين الحظائر";h=penList()+'<label>الحظيرة الجديدة</label><input id="np" list="pl"><label>أرقام الأبقار (رقم في كل سطر أو بينهم مسافة)</label><textarea id="ids"></textarea><div style="margin-top:12px"><button class="btn p s" id="mv">نقل</button><button class="btn s" id="clr">مسح</button></div><label>النتيجة</label><div class="msg" id="res"></div>'}
+else if(V==="search"){t="بحث بعدة أرقام";h='<label>أرقام الأبقار (رقم في كل سطر أو بينهم مسافة)</label><textarea id="ids"></textarea><div style="margin-top:12px"><button class="btn p s" id="sr">بحث</button><button class="btn s" id="clr">مسح</button></div><div id="res"></div>'}
+else if(V==="rep"){t="التقارير";h='<label>الحالة التناسلية</label><select id="rs"><option>الكل</option>'+opts(STAT)+'</select>'+cond('w','الوزن (كجم)')+cond('a','العمر (يوم)')+cond('d','عدد أيام الحمل (DCC)')+'<div class="card"><label style="margin-top:0">الولادة المتوقعة خلال (يوم)</label><input id="dn" type="number" inputmode="numeric" placeholder="مثال: 30"><p class="mut" style="margin:6px 0 0">للأبقار العشار فقط (حمل 280 يوم، وتشمل المتأخرة).</p></div><div style="margin-top:12px"><button class="btn p" id="show">عرض</button></div><div id="res"></div>'}
+else if(V==="bk"){t="نسخة احتياطية";h='<p class="mut">البيانات على هذا الجهاز فقط، فخد نسخة احتياطية من وقت لوقت وابعتها لنفسك (واتساب مثلاً).</p><button class="btn p" id="cp">نسخ البيانات</button><label>استرجاع: الصق النسخة هنا</label><textarea id="rt"></textarea><div style="margin-top:12px"><button class="btn d" id="rs2">استرجاع</button></div><div class="msg" id="res" style="display:none"></div>'}
+$("ttl").textContent=t;$("app").innerHTML=h}
+var GEST=280;
+function ageOf(c){if(c.bd){var n=Math.floor((new Date(today())-new Date(c.bd))/864e5);return n>=0?n:''}return c.age==null?'':c.age}
+function rem(c){if(c.st!=='عشار')return null;var d=parseFloat(c.dcc);return isNaN(d)?null:GEST-d}
+function iso(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function dueDate(c){var r=rem(c);if(r===null)return'';var d=new Date(today()+'T00:00:00');d.setDate(d.getDate()+r);return iso(d)}
+function mvlog(id){var l=S.moves.filter(function(m){return m.id===id}).reverse();return'<div class="card"><b>سجل النقل</b>'+(l.length?l.map(function(m){return'<div class="mut">'+esc(m.date)+' — من '+esc(m.from||'-')+' إلى '+esc(m.to||'-')+'</div>'}).join(''):'<div class="mut">لا يوجد نقل مسجل.</div>')+'</div>'}
+function bkWarn(){if(!S.cows.length)return'';var d=S.lastBk?Math.floor((new Date(today())-new Date(S.lastBk))/864e5):null;return d===null||d>=7?'<div class="card bad" data-go="bk">⚠ '+(d===null?'لم تأخذ نسخة احتياطية بعد':'آخر نسخة احتياطية من '+d+' يوم')+'. اضغط هنا لأخذ نسخة.</div>':''}
+function cond(p,n){return'<div class="card"><label style="margin-top:0">شرط '+n+'</label><select id="'+p+'c"><option>بدون شرط</option><option>أكبر من</option><option>أقل من</option><option>بين</option></select><div class="row"><div><label>القيمة</label><input id="'+p+'1" type="number" inputmode="decimal"></div><div><label>إلى (لـ بين)</label><input id="'+p+'2" type="number" inputmode="decimal"></div></div></div>'}
+function chk(v,p){var k=$(p+'c').value,x=parseFloat($(p+'1').value),y=parseFloat($(p+'2').value),n=parseFloat(v);if(k==='بدون شرط'||isNaN(x))return true;if(isNaN(n))return false;if(k==='أكبر من')return n>x;if(k==='أقل من')return n<x;if(isNaN(y))y=x;return n>=Math.min(x,y)&&n<=Math.max(x,y)}
+function form(c,isNew){return penList()+'<label>رقم البقرة (Cow ID)</label><input id="f_id" '+(isNew?"":"readonly ")+'value="'+esc(c.id)+'"><label>رقم الحظيرة</label><input id="f_pen" list="pl" value="'+esc(c.pen)+'"><label>تاريخ الميلاد (يحسب العمر تلقائيًا)</label><input id="f_bd" type="date" value="'+esc(c.bd)+'"><label>العمر (بالأيام)</label><input id="f_age" type="number" inputmode="numeric" '+(c.bd?'readonly ':'')+'value="'+esc(ageOf(c))+'"><label>الوزن (كجم)</label><input id="f_w" type="number" inputmode="decimal" value="'+esc(c.w)+'"><label>عدد أيام الحمل (DCC)</label><input id="f_dcc" type="number" inputmode="numeric" value="'+esc(c.dcc)+'"><label>الحالة التناسلية</label><select id="f_st"><option></option>'+opts(STAT,c.st)+'</select>'+(dueDate(c)?'<p class="ok">الولادة المتوقعة: '+dueDate(c)+'</p>':'')+'<label>تاريخ التسجيل</label><input id="f_date" type="date" value="'+esc(c.date)+'"><label>ملاحظة</label><input id="f_note" value="'+esc(c.note)+'"><div style="margin-top:16px"><button class="btn p s" id="sv" data-new="'+(isNew?1:0)+'">'+(isNew?"حفظ":"حفظ التعديل")+'</button>'+(isNew?"":'<button class="btn d s" id="del">حذف</button>')+'</div><div class="msg" id="res" style="display:none"></div>'}
+function say(m,ok){var r=$("res");if(!r)return;r.style.display="block";r.className="msg "+(ok?"ok":"bad");r.textContent=m}
+function onSave(isNew){var id=$("f_id").value.trim();if(!id)return say("اكتب رقم البقرة.");
+var o={id:id,pen:$("f_pen").value.trim(),bd:$("f_bd").value,age:$("f_bd").value?String(ageOf({bd:$("f_bd").value})):$("f_age").value,w:$("f_w").value,dcc:$("f_dcc").value,st:$("f_st").value,date:$("f_date").value,note:$("f_note").value};
+if(isNew){if(find(id))return say("رقم البقرة موجود بالفعل.");S.cows.push(o);save();say("تم الحفظ ✓",1);render0(o)}
+else{var c=find(id);if(!c)return say("البقرة غير موجودة.");if(c.pen!==o.pen)S.moves.push({id:id,from:c.pen,to:o.pen,date:today()});Object.assign(c,o);save();say("تم حفظ التعديل ✓",1)}}
+function render0(o){setTimeout(function(){go("add")},700)}
+document.addEventListener("click",function(e){var t=e.target,g=t.closest("[data-go]"),r=t.closest("tr[data-id]"),p=t.closest("[data-pen]");
+if(t.id==="back")return go("home");
+if(g)return go(g.dataset.go);
+if(r)return go("edit",r.dataset.id);
+if(p)return go("pens",p.dataset.pen);
+var th=t.closest("th[data-sort]");if(th){var f=th.dataset.sort;if(SORT.f===f)SORT.d*=-1;else{SORT.f=f;SORT.d=1}$("tw").innerHTML=tbl();return}
+var i=t.id;
+if(i==="sd"){SORT.d*=-1;$("tw").innerHTML=tbl()}
+else if(i==="sv")onSave(t.dataset.new==="1");
+else if(i==="ld"){go("edit",$("lid").value.trim());if(!find($("lid").value.trim())&&$("lid").value.trim())$("fm").innerHTML='<p class="bad">البقرة غير موجودة.</p>'}
+else if(i==="del"){var id=$("f_id").value;if(confirm("حذف البقرة "+id+"؟")){S.cows=S.cows.filter(function(c){return c.id!==id});save();go("edit")}}
+else if(i==="clr"){$("ids").value="";if($("res"))$("res").innerHTML="";if($("res"))$("res").textContent=""}
+else if(i==="mv"){var np=$("np").value.trim(),l=ids($("ids").value);if(!np||!l.length)return;var ok=[],no=[];l.forEach(function(x){var c=find(x);if(c){S.moves.push({id:x,from:c.pen,to:np,date:today()});c.pen=np;ok.push(x)}else no.push(x)});save();
+$("res").textContent="تم نقل "+ok.length+" إلى حظيرة "+np+(no.length?"\nغير موجودة ("+no.length+"): "+no.join("، "):"")}
+else if(i==="sr"){var l2=ids($("ids").value),f=[],m=[];l2.forEach(function(x){var c=find(x);c?f.push(c):m.push(x)});
+$("res").innerHTML='<p>تم العثور على '+f.length+' من '+l2.length+'</p>'+table(f)+(m.length?'<div class="msg bad">غير موجودة: '+esc(m.join("، "))+'</div>':"")}
+else if(i==="show"){var s=$("rs").value;
+var l3=S.cows.filter(function(c){if(s!=="الكل"&&c.st!==s)return false;var dn=$("dn").value;if(dn!==""){var r=rem(c);if(r===null||r>parseFloat(dn))return false}return chk(c.w,'w')&&chk(ageOf(c),'a')&&chk(c.dcc,'d')});
+if($("dn").value!=="")l3.sort(function(x,y){return rem(x)-rem(y)});
+var ws=l3.map(function(c){return parseFloat(c.w)}).filter(function(x){return!isNaN(x)}),avg=ws.length?(ws.reduce(function(x,y){return x+y},0)/ws.length).toFixed(1):"-";
+$("res").innerHTML='<p>العدد: <b>'+l3.length+'</b> — متوسط الوزن: <b>'+avg+'</b></p>'+table(l3)+(l3.length?'<button class="btn p" id="cpr" style="margin-top:12px">نسخ النتيجة للواتساب</button><div class="msg" id="rmsg" style="display:none"></div>':'');window.LAST=l3}
+else if(i==="cpr"){var L=sorted(window.LAST||[]),tx="تقرير الأبقار — العدد: "+L.length+"\n"+L.map(function(c){return c.id+" | حظيرة "+(c.pen||"-")+" | عمر "+(ageOf(c)||"-")+" | وزن "+(c.w||"-")+" | DCC "+(c.dcc||"-")+" | "+(c.st||"-")}).join("\n"),m=$("rmsg");m.style.display="block";(navigator.clipboard?navigator.clipboard.writeText(tx):Promise.reject()).then(function(){m.className="msg ok";m.textContent="تم النسخ ✓ الصقه في واتساب."},function(){m.className="msg";m.textContent=tx})}
+else if(i==="cp"){var j=JSON.stringify(S);(navigator.clipboard?navigator.clipboard.writeText(j):Promise.reject()).then(function(){S.lastBk=today();save();say("تم النسخ. الصقه في أي مكان للحفظ.",1)},function(){S.lastBk=today();save();$("rt").value=j;$("rt").select();say("انسخ النص اللي في الخانة بالأسفل يدويًا.",1)})}
+else if(i==="rs2"){try{var d=JSON.parse($("rt").value);if(!d.cows)throw 0;if(confirm("هيتم استبدال كل البيانات الحالية. متأكد؟")){S=d;if(!S.moves)S.moves=[];save();say("تم الاسترجاع: "+S.cows.length+" بقرة.",1)}}catch(x){say("النص غير صالح.")}}
+});
+document.addEventListener("change",function(e){if(e.target.id==="sf"){SORT.f=e.target.value;$("tw").innerHTML=tbl()}});
+load();render();
+if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("./sw.js").catch(function(){})})}
+if(navigator.storage&&navigator.storage.persist){navigator.storage.persist().catch(function(){})}
+</script>
+</body>
+</html>
