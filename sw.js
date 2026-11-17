@@ -1,5 +1,5 @@
 // غيّر رقم النسخة عند كل تعديل على الملفات عشان التليفون يحدّث نفسه
-const VERSION = "cows-v2";
+const VERSION = "cows-v5";
 const FILES = ["./", "./index.html", "./manifest.json",
   "./icons/icon-192.png", "./icons/icon-512.png", "./icons/icon-maskable-512.png"];
 
